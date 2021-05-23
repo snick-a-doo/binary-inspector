@@ -2,140 +2,144 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cmath>
 #include <istream>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-auto read_number = [](std::istream& is, auto& value, auto reject)
+template <typename T>
+Entry read_number(std::istream& is, std::function<bool(T)> accept)
 {
-    assert(is);
-    auto start = is.tellg();
-    do
+    while(is)
     {
-        start = is.tellg();
+        auto start = is.tellg();
+        T value;
         is.read(reinterpret_cast<char*>(&value), sizeof value);
+        // Advance 1 byte
         is.seekg(start + std::istream::pos_type(1));
+        if (accept(value))
+            return {start, std::to_string(value), ""};
     }
-    while (is && reject(value));
-    return Entry{start, std::to_string(value), ""};
+    return {};
 };
 
-template <typename T> Entry read_next(std::istream& is, T& value, Range range)
+template <typename T>
+Entry read_string(std::istream& is, const Range& range)
 {
-    return read_number(is, value, [range](T v) {
-        return v < range.first || v > range.second; });
-}
-
-Entry read_next(std::istream& is, double& value, Range range)
-{
-    return read_number(is, value, [range](double v) {
-        return std::abs(v) < std::pow(10, range.first)
-            || std::abs(v) > std::pow(10, range.second)
-            || !std::isfinite(v);
-    });
-}
-
-Entry read_next(std::istream& is, float& value, Range range)
-{
-    return read_number(is, value, [range](float v) {
-        return std::abs(v) < std::pow(10, range.first)
-            || std::abs(v) > std::pow(10, range.second)
-            || !std::isfinite(v);
-    });
+    if (!is)
+        return {};
+    // Find the bounds of the next null-terminated ASCII string that's within the length
+    // limits.
+    std::string out;
+    auto start = is.tellg();
+    while (is)
+    {
+        T c;
+        is.read(reinterpret_cast<char*>(&c), sizeof c);
+        auto c_low = static_cast<unsigned char>(c);
+        auto len = static_cast<range_t>(out.length());
+        // Check for end of a long enough string.
+        if (c == '\0' && len >= range.first)
+            return {start, out, ""};
+        // Add a good character to the string.
+        if (!std::iscntrl(c_low) && c_low == c && len < range.second)
+            out.push_back(c_low);
+        else
+        {
+            // Bad character or too long.
+            // Consume any remaining characters from an over-long string.
+            while (!std::iscntrl(c_low) && c_low == c)
+            {
+                is.read(reinterpret_cast<char*>(&c), sizeof c);
+                c_low = static_cast<unsigned char>(c);
+            }
+            // Start looking for the next string.
+            start = is.tellg();
+            out.clear();
+        }
+    }
+    return {};
 }
 
 template <typename T>
-Entry read_next(std::istream& is, std::basic_string<T>& str, Range range)
+Entry read_next(std::istream& is, const Range& range)
 {
-    assert(is);
-    std::optional<std::istream::pos_type> start;
-    std::optional<std::istream::pos_type> end;
-    // Find the bounds of the next null-terminated ASCII string that's within the length
-    // limits.
-    while (is && !end)
-    {
-        auto pos = is.tellg();
-        T str_char;
-        is.read(reinterpret_cast<char*>(&str_char), sizeof str_char);
-        auto c = static_cast<unsigned char>(str_char);
-        if (start && c == '\0')
-        {
-            auto len = static_cast<int>(pos - *start);
-            if (len < range.first || len > range.second)
-                start.reset();
-            else
-                end = pos;
-        }
-        else if (c < ' ' || c == 0x7f || c > 0xfc) // Not in Latin-1
-            start.reset();
-        else if (!start)
-            start = pos;
-    }
-    // If we didn't find the end of a string we must be at the end of the stream.
-    assert(end || !is);
-    // If we found the end, we must have found the start.
-    assert(!end || start);
-    if (!end)
-        return {0, "", ""};
-    is.clear(); // Recover from possible EOF
-    // Rewind to the start of the string and read in the characters.
-    is.seekg(*start);
-    std::string out;
-    while (is)
-    {
-        T str_char;
-        is.read(reinterpret_cast<char*>(&str_char), sizeof str_char);
-        char c = static_cast<char>(str_char);
-        if (c == '\0')
-            break;
-        out += c;
-    }
-    return {*start, out, ""};
+    return read_number<T>(is, [range](T v) {
+        return v >= range.first && v <= range.second; });
 }
 
-template <typename T> Report find(std::istream& is, T value, const Filter& f)
+auto is_in_exp_range = [](auto x, const Range& range) {
+    return std::abs(x) >= std::pow(10, range.first)
+        && std::abs(x) <= std::pow(10, range.second)
+        && std::isfinite(x);
+};
+
+using namespace std::placeholders;
+
+template <> Entry
+read_next<double>(std::istream& is, const Range& range)
+{
+    return read_number<double>(is, std::bind(is_in_exp_range, _1, range));
+}
+
+template <> Entry
+read_next<float>(std::istream& is, const Range& range)
+{
+    return read_number<float>(is, std::bind(is_in_exp_range, _1, range));
+}
+
+template <>
+Entry read_next<char8_t>(std::istream& is, const Range& range)
+{
+    return read_string<char8_t>(is, range);
+}
+
+template <>
+Entry read_next<char16_t>(std::istream& is, const Range& range)
+{
+    return read_string<char16_t>(is, range);
+}
+
+/// Get everything in the stream that matches the given filter.
+template <typename T> Report find(std::istream& is, const Filter& filter)
 {
     Report out;
-    while (is)
+    while (true)
     {
-        auto entry = read_next(is, value, f.range);
+        auto entry = read_next<T>(is, filter.range);
         if (!is)
-            break;
-        entry.type = f.type;
+            return out;
+        entry.type = filter.type;
         out.push_back(entry);
     }
-    return out;
 }
 
 Report inspect(std::istream& is, const Spec& spec)
 {
     Report out;
-    const std::istream::pos_type start = is.tellg();
-    for (const auto& s : spec)
+    const auto start = is.tellg();
+    for (const auto& filter : spec)
     {
         Report sub;
         is.clear(); // Recover from EOF in previous iteration.
         is.seekg(start);
-        if (s.type == "f64")
-            sub = find(is, double(0), s);
-        else if (s.type == "f32")
-            sub = find(is, float(0), s);
-        else if (s.type == "i64")
-            sub = find(is, std::int64_t(0), s);
-        else if (s.type == "i32")
-            sub = find(is, std::int32_t(0), s);
-        else if (s.type == "i16")
-            sub = find(is, std::int16_t(0), s);
-        else if (s.type == "s8")
-            sub = find(is, std::string(), s);
-        else if (s.type == "s16")
-            sub = find(is, std::basic_string<char16_t>(), s);
-        else if (s.type == "s32")
-            sub = find(is, std::basic_string<char32_t>(), s);
+        if (filter.type == "f64")
+            sub = find<double>(is, filter);
+        else if (filter.type == "f32")
+            sub = find<float>(is, filter);
+        else if (filter.type == "i64")
+            sub = find<int64_t>(is, filter);
+        else if (filter.type == "i32")
+            sub = find<int32_t>(is, filter);
+        else if (filter.type == "i16")
+            sub = find<int16_t>(is, filter);
+        else if (filter.type == "s8")
+            sub = find<char8_t>(is, filter);
+        else if (filter.type == "s16")
+            sub = find<char16_t>(is, filter);
         else
             assert(false);
         out.insert(out.end(), sub.begin(), sub.end());
@@ -148,36 +152,37 @@ Report inspect(std::istream& is, const Spec& spec)
 
 std::vector<std::string> format_report(const Report& report)
 {
+    constexpr int addr_width = 8;
     std::vector<std::string> out;
-    std::optional<unsigned int> last_addr;
-    std::string last_type;
-    std::string last_value;
+    Entry last_entry;
     for (const auto& entry : report)
     {
         auto [addr, value, type] = entry;
         std::ostringstream pos;
-        pos << std::setfill('0') << std::setw(8) << std::hex << addr;
+        pos << std::setfill('0') << std::setw(addr_width) << std::hex << addr;
         auto lsd = pos.str()[7];
-        if (type == last_type && value == last_value && lsd != '0')
+        // If a value occurs multiple times on the same 16-byte line, show just one entry
+        // in the report but mark the LSD of each address.
+        if (type == last_entry.type && value == last_entry.value && lsd != '0')
         {
-            // Add byte to the previous line.
-            std::size_t i = 8 + addr % 16;
-            out.back()[i] = lsd;
+            out.back()[addr_width + (addr & 0xf)] = lsd;
             continue;
         }
-        auto fill = addr % 0x10;
+        // Format the line.
         std::ostringstream line;
-        line << (last_addr && *last_addr >> 4 == addr >> 4
-                 ? std::string(7, ' ') : pos.str().substr(0, 7))
-             << std::string(fill + 1, ' ')
-             << lsd
-             << std::string(0x11 - fill, ' ')
-             << type << std::string(4 - type.size(), ' ')
-             << std::dec << value;
+        // Don't repeat the address if it's the same up to the LSD.
+        line << (last_entry.address != -1 && last_entry.address >> 4 == addr >> 4
+                 ? std::string(addr_width - 1, ' ')
+                 : pos.str().substr(0, addr_width - 1))
+             << ' ';
+        // Show the LSD in its column.
+        std::string byte(0x12, ' '); // Include 2 characters of padding.
+        byte[addr & 0xf] = lsd;
+        line << byte
+             << std::setw(4) << std::left << type
+             << value;
         out.push_back(line.str());
-        last_addr = addr;
-        last_type = type;
-        last_value = value;
+        last_entry = entry;
     }
     return out;
 }
