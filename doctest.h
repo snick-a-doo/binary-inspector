@@ -1026,7 +1026,7 @@ namespace detail {
     template <typename R>                                                                          \
     rt& operator op(const R&) {                                                                    \
         static_assert(deferred_false<R>::value,                                                    \
-                      "Expression Too Complex Please Rewrite As Binary Comparison!");              \
+                      "Expression too complex. Please rewrite as binary comparison.");              \
         return *this;                                                                              \
     }
 
@@ -3255,11 +3255,11 @@ const char* assertString(assertType::Enum at) {
 
 const char* failureString(assertType::Enum at) {
     if(at & assertType::is_warn) //!OCLINT bitwise operator in conditional
-        return "WARNING";
+        return "Warning";
     if(at & assertType::is_check) //!OCLINT bitwise operator in conditional
-        return "ERROR";
+        return "Error";
     if(at & assertType::is_require) //!OCLINT bitwise operator in conditional
-        return "FATAL ERROR";
+        return "Fatal error";
     return "";
 }
 
@@ -5253,7 +5253,7 @@ namespace {
             file_line_to_stream(s, tc->m_file, tc->m_line, " ");
             successOrFailColoredStringToStream(false, e.is_crash ? assertType::is_require :
                                                                    assertType::is_check);
-            s << Color::Red << (e.is_crash ? "test case CRASHED: " : "test case THREW exception: ")
+            s << Color::Red << (e.is_crash ? "test case CRASHED: " : "test case threw exception: ")
               << Color::Cyan << e.error_string << "\n";
 
             int num_stringified_contexts = get_num_stringified_contexts();
@@ -5296,42 +5296,42 @@ namespace {
                   << Color::None;
 
             if(rb.m_at & assertType::is_throws) { //!OCLINT bitwise operator in conditional
-                s << (rb.m_threw ? "threw as expected!" : "did NOT throw at all!") << "\n";
+                s << (rb.m_threw ? "threw as expected" : "did not throw") << "\n";
             } else if((rb.m_at & assertType::is_throws_as) &&
                       (rb.m_at & assertType::is_throws_with)) { //!OCLINT
                 s << Color::Cyan << assertString(rb.m_at) << "( " << rb.m_expr << ", \""
                   << rb.m_exception_string << "\", " << rb.m_exception_type << " ) " << Color::None;
                 if(rb.m_threw) {
                     if(!rb.m_failed) {
-                        s << "threw as expected!\n";
+                        s << "threw as expected\n";
                     } else {
-                        s << "threw a DIFFERENT exception! (contents: " << rb.m_exception << ")\n";
+                        s << "threw a different exception (contents: " << rb.m_exception << ")\n";
                     }
                 } else {
-                    s << "did NOT throw at all!\n";
+                    s << "did not throw\n";
                 }
             } else if(rb.m_at &
                       assertType::is_throws_as) { //!OCLINT bitwise operator in conditional
                 s << Color::Cyan << assertString(rb.m_at) << "( " << rb.m_expr << ", "
                   << rb.m_exception_type << " ) " << Color::None
-                  << (rb.m_threw ? (rb.m_threw_as ? "threw as expected!" :
-                                                    "threw a DIFFERENT exception: ") :
-                                   "did NOT throw at all!")
+                  << (rb.m_threw ? (rb.m_threw_as ? "threw as expected" :
+                                                    "threw a different exception: ") :
+                                   "did not throw")
                   << Color::Cyan << rb.m_exception << "\n";
             } else if(rb.m_at &
                       assertType::is_throws_with) { //!OCLINT bitwise operator in conditional
                 s << Color::Cyan << assertString(rb.m_at) << "( " << rb.m_expr << ", \""
                   << rb.m_exception_string << "\" ) " << Color::None
-                  << (rb.m_threw ? (!rb.m_failed ? "threw as expected!" :
-                                                   "threw a DIFFERENT exception: ") :
-                                   "did NOT throw at all!")
+                  << (rb.m_threw ? (!rb.m_failed ? "threw as expected" :
+                                                   "threw a different exception: ") :
+                                   "did not throw")
                   << Color::Cyan << rb.m_exception << "\n";
             } else if(rb.m_at & assertType::is_nothrow) { //!OCLINT bitwise operator in conditional
-                s << (rb.m_threw ? "THREW exception: " : "didn't throw!") << Color::Cyan
+                s << (rb.m_threw ? "threw exception: " : "didn't throw") << Color::Cyan
                   << rb.m_exception << "\n";
             } else {
-                s << (rb.m_threw ? "THREW exception: " :
-                                   (!rb.m_failed ? "is correct!\n" : "failed\n"));
+                s << (rb.m_threw ? "threw exception: " :
+                                   (!rb.m_failed ? "is correct\n" : "failed\n"));
                 if(rb.m_threw)
                     s << rb.m_exception << "\n";
                 else
@@ -5349,7 +5349,7 @@ namespace {
             file_line_to_stream(s, mb.m_file, mb.m_line, " ");
             s << getSuccessOrFailColor(false, mb.m_severity)
               << getSuccessOrFailString(mb.m_severity & assertType::is_warn, mb.m_severity,
-                                        "MESSAGE") << ": ";
+                                        "message") << ": ";
             s << Color::None << mb.m_string << "\n";
             log_contexts();
         }
