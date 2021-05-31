@@ -49,7 +49,7 @@ int main(int argc, char** argv)
     {
         write(os, u"moo"); // moo -> 6d6f 6f, no preceeding zero
         write(os, u"moo"); // moo -> 6d6f 6f
-        write(os, u"weeping willow");
+        write(os, u"w\346e\376ing w\357ll\370w"); // "wæeÞing wïlløw");
         // Offset the next string by 1 byte.
         char offset = 0;
         os << offset;
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     {
         write(os, "moo"); // moo -> 6d00 6f00 6f00, no preceeding zero
         write(os, "moo"); // moo -> 6d00 6f00 6f00
-        write(os, "weeping willow");
+        write(os, "w\346e\376ing w\357ll\370w"); // "wæeÞing wïlløw");
         write(os, "first\tsecond\nthird"); // 3 strings
         write(os, "third");
     }

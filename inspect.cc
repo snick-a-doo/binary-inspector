@@ -15,21 +15,6 @@
 struct dummy_ascii8_t{};
 struct dummy_ascii16_t{};
 
-/// @return True if the argument is an ASCII character, i.e. printable in the C locale.
-bool is_ascii(unsigned char c)
-{
-    std::setlocale(LC_ALL, "C");
-    return std::isprint(c);
-}
-
-/// @return True if the argument is in the Latin-1 extended ASCII character set,
-/// i.e. printable in the ISO-88591 locale.
-bool is_latin(unsigned char c)
-{
-    std::setlocale(LC_ALL, "en_US.iso88591");
-    return std::isprint(c);
-}
-
 template <typename T>
 Entry read_number(std::istream& is, std::function<bool(T)> accept)
 {
@@ -47,7 +32,7 @@ Entry read_number(std::istream& is, std::function<bool(T)> accept)
 };
 
 template <typename T>
-Entry read_string(std::istream& is, const Range& range, std::function<bool(T)> accept)
+Entry read_string(std::istream& is, const Range& range)
 {
     if (!is)
         return {};
@@ -65,14 +50,16 @@ Entry read_string(std::istream& is, const Range& range, std::function<bool(T)> a
         if ((c_low == '\0' || c_low == '\t' || c_low == '\n' || c_low == '\r')
             && len >= range.first)
             return {start, out, ""};
-        // Add a good character to the string.
-        if (accept(c_low) && c_low == c && len < range.second)
+        // Add a good character to the string. isprint() depends on the locale set in
+        // inspect(). If the locale is C it says whether the character is ASCII. If the
+        // locale is iso88591 it says whether it's in the Latin-1 set.
+        if (std::isprint(c_low) && c_low == c && len < range.second)
             out.push_back(c_low);
         else
         {
             // Bad character or too long.
             // Consume any remaining characters from an over-long string.
-            while (accept(c_low) && c_low == c)
+            while (std::isprint(c_low) && c_low == c)
             {
                 start = is.tellg();
                 is.read(reinterpret_cast<char*>(&c), sizeof c);
@@ -118,25 +105,25 @@ read_next<float>(std::istream& is, const Range& range)
 template <>
 Entry read_next<dummy_ascii8_t>(std::istream& is, const Range& range)
 {
-    return read_string<char8_t>(is, range, is_ascii);
+    return read_string<char8_t>(is, range);
 }
 
 template <>
 Entry read_next<dummy_ascii16_t>(std::istream& is, const Range& range)
 {
-    return read_string<char16_t>(is, range, is_ascii);
+    return read_string<char16_t>(is, range);
 }
 
 template <>
 Entry read_next<char8_t>(std::istream& is, const Range& range)
 {
-    return read_string<char8_t>(is, range, is_latin);
+    return read_string<char8_t>(is, range);
 }
 
 template <>
 Entry read_next<char16_t>(std::istream& is, const Range& range)
 {
-    return read_string<char16_t>(is, range, is_latin);
+    return read_string<char16_t>(is, range);
 }
 
 /// Get everything in the stream that matches the given filter.
@@ -175,13 +162,25 @@ Report inspect(std::istream& is, const Spec& spec)
         else if (filter.type == "i16")
             sub = find<int16_t>(is, filter);
         else if (filter.type == "s8")
+        {
+            std::setlocale(LC_ALL, "en_US.iso88591");
             sub = find<char8_t>(is, filter);
+        }
         else if (filter.type == "s16")
+        {
+            std::setlocale(LC_ALL, "en_US.iso88591");
             sub = find<char16_t>(is, filter);
+        }
         else if (filter.type == "a8")
+        {
+            std::setlocale(LC_ALL, "C");
             sub = find<dummy_ascii8_t>(is, filter);
+        }
         else if (filter.type == "a16")
+        {
+            std::setlocale(LC_ALL, "C");
             sub = find<dummy_ascii16_t>(is, filter);
+        }
         else
             throw(unknown_type(filter.type));
         out.insert(out.end(), sub.begin(), sub.end());

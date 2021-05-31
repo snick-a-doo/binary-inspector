@@ -236,11 +236,19 @@ TEST_CASE("long string")
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
     CHECK(out[0].address == 0x1c);
-    CHECK(out[0].value == "weeping willow");
+    CHECK(out[0].value == "w\346e\376ing w\357ll\370w"); // "wæeÞing wïlløw");
     CHECK(out[0].type == "s8");
     auto fmt = format_report(out);
     CHECK(fmt.size() == 1);
-    CHECK(fmt[0] == "0000001             c     s8  weeping willow");
+    CHECK(fmt[0] == "0000001             c     s8  w\346e\376ing w\357ll\370w");
+}
+
+TEST_CASE("no long ASCII string")
+{
+    std::ifstream is("../test_data");
+    Spec spec{{"a8", {10, 100}}};
+    auto out = inspect(is, spec);
+    CHECK(out.empty());
 }
 
 TEST_CASE("repeated zeros")
@@ -329,11 +337,19 @@ TEST_CASE("long 16-bit char string")
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
     CHECK(out[0].address == 0x24);
-    CHECK(out[0].value == "weeping willow");
+    CHECK(out[0].value == "w\346e\376ing w\357ll\370w"); // "wæeÞing wïlløw");
     CHECK(out[0].type == "s16");
     auto fmt = format_report(out);
     CHECK(fmt.size() == 1);
-    CHECK(fmt[0] == "0000002     4             s16 weeping willow");
+    CHECK(fmt[0] == "0000002     4             s16 w\346e\376ing w\357ll\370w");
+}
+
+TEST_CASE("no long 16-bit ASCII string")
+{
+    std::ifstream is("../test_data_wide");
+    Spec spec{{"a16", {10, 100}}};
+    auto out = inspect(is, spec);
+    CHECK(out.empty());
 }
 
 TEST_CASE("split string")
