@@ -4,7 +4,6 @@
 #include "doctest.h"
 
 #include <cstring>
-#include <exception>
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
@@ -20,15 +19,6 @@ struct bad_format : public std::runtime_error
 {
     bad_format(const std::string& arg)
         : runtime_error{"Range format should be <low>:<high> (" + arg + ")"}
-    {}
-};
-
-/// Exception raised when the range is empty.
-struct bad_range : public std::runtime_error
-{
-    bad_range(range_t low, range_t high)
-        : runtime_error{"Low range >= high ("
-        + std::to_string(low) + " >= " + std::to_string(high) + ")"}
     {}
 };
 
@@ -49,6 +39,8 @@ const std::map<std::string, Range> default_ranges = {
     {"i16", {-1000, 1000}},
     {"s16", {3, 64}}, // string length
     {"s8",  {3, 64}},
+    {"a16", {3, 64}},
+    {"a8",  {3, 64}},
 };
 
 /// The ranges used if no ranges are specified.
@@ -68,7 +60,7 @@ Range get_range(const std::string& str)
     is >> low >> sep >> high;
     if (sep != ':' || !is)
         throw bad_format(str);
-    if (low >= high)
+    if (low > high)
         throw bad_range(low, high);
     return {low, high};
 };
@@ -94,8 +86,10 @@ const std::string usage =
     "  -l --i64=[range] show 64-bit integers.\n"
     "  -i --i32=[range] show 32-bit integers.\n"
     "  -s --i16=[range] show 16-bit integers.\n"
-    "  -u --s16=[range] show wide ASCII strings.\n"
-    "  -z --s8=[range]  show ASCII strings.\n"
+    "  -Z --s16=[range] show 2-byte Latin-1 strings.\n"
+    "  -z --s8=[range]  show 1-byte Latin-1 strings.\n"
+    "  -A --s16=[range] show 2-byte ASCII strings.\n"
+    "  -a --s8=[range]  show 1-byte ASCII strings.\n"
     "\n"
     "Range is given as <low>:<high>. For floats, <low> and <high> are exponents,\n"
     "for integers they're values, for strings they're lengths.\n"
@@ -115,8 +109,10 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
         {"i64", optional_argument, nullptr, 'l'},
         {"i32", optional_argument, nullptr, 'i'},
         {"i16", optional_argument, nullptr, 's'},
-        {"s16", optional_argument, nullptr, 'u'},
+        {"s16", optional_argument, nullptr, 'Z'},
         {"s8", optional_argument, nullptr, 'z'},
+        {"a16", optional_argument, nullptr, 'A'},
+        {"a8", optional_argument, nullptr, 'a'},
         {"help", no_argument, nullptr, 'h'},
         {0, 0, 0, 0}};
 
@@ -132,7 +128,7 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
     while (true)
     {
         int index;
-        int c = getopt_long(argc, argv, "d::f::l::i::s::u::z::", options, &index);
+        int c = getopt_long(argc, argv, "A::a::d::f::i::l::s::Z::z::", options, &index);
         if (c == -1)
             break;
         switch (c)
@@ -152,11 +148,17 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
         case 's':
             add_filter("i16");
             break;
-        case 'u':
+        case 'Z':
             add_filter("s16");
             break;
         case 'z':
             add_filter("s8");
+            break;
+        case 'A':
+            add_filter("a16");
+            break;
+        case 'a':
+            add_filter("a8");
             break;
         case 'h':
             std::cerr << usage;
@@ -201,6 +203,7 @@ int main(int argc, char** argv)
 TEST_CASE("parse range")
 {
     CHECK(get_range("1:2") == Range {1, 2});
+    CHECK(get_range("2:2") == Range {2, 2});
     CHECK_THROWS_AS(get_range("1-2"), bad_format);
     CHECK_THROWS_AS(get_range("1/2"), bad_format);
 
@@ -217,7 +220,6 @@ TEST_CASE("parse range")
           == Range {-999'999'999'999L, 999'999'999'999L});
 
     CHECK_THROWS_AS(get_range(""), bad_format);
-    CHECK_THROWS_AS(get_range("22:22"), bad_range);
     CHECK_THROWS_AS(get_range("22:3"), bad_range);
     CHECK_THROWS_AS(get_range("22:"), bad_format);
     CHECK_THROWS_AS(get_range(":3"), bad_format);

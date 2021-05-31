@@ -6,9 +6,29 @@
 #include <cmath>
 #include <istream>
 #include <iomanip>
+#include <locale>
 #include <sstream>
 #include <string>
 #include <vector>
+
+/// Dummy types for template function resolution.
+struct dummy_ascii8_t{};
+struct dummy_ascii16_t{};
+
+/// @return True if the argument is an ASCII character, i.e. printable in the C locale.
+bool is_ascii(unsigned char c)
+{
+    std::setlocale(LC_ALL, "C");
+    return std::isprint(c);
+}
+
+/// @return True if the argument is in the Latin-1 extended ASCII character set,
+/// i.e. printable in the ISO-88591 locale.
+bool is_latin(unsigned char c)
+{
+    std::setlocale(LC_ALL, "en_US.iso88591");
+    return std::isprint(c);
+}
 
 template <typename T>
 Entry read_number(std::istream& is, std::function<bool(T)> accept)
@@ -27,7 +47,7 @@ Entry read_number(std::istream& is, std::function<bool(T)> accept)
 };
 
 template <typename T>
-Entry read_string(std::istream& is, const Range& range)
+Entry read_string(std::istream& is, const Range& range, std::function<bool(T)> accept)
 {
     if (!is)
         return {};
@@ -42,22 +62,26 @@ Entry read_string(std::istream& is, const Range& range)
         auto c_low = static_cast<unsigned char>(c);
         auto len = static_cast<range_t>(out.length());
         // Check for end of a long enough string.
-        if (c == '\0' && len >= range.first)
+        if ((c_low == '\0' || c_low == '\t' || c_low == '\n' || c_low == '\r')
+            && len >= range.first)
             return {start, out, ""};
         // Add a good character to the string.
-        if (!std::iscntrl(c_low) && c_low == c && len < range.second)
+        if (accept(c_low) && c_low == c && len < range.second)
             out.push_back(c_low);
         else
         {
             // Bad character or too long.
             // Consume any remaining characters from an over-long string.
-            while (!std::iscntrl(c_low) && c_low == c)
+            while (accept(c_low) && c_low == c)
             {
+                start = is.tellg();
                 is.read(reinterpret_cast<char*>(&c), sizeof c);
                 c_low = static_cast<unsigned char>(c);
             }
-            // Start looking for the next string.
-            start = is.tellg();
+            // Start looking for the next string at the next byte. This requires rewinding
+            // the stream if T is wider than 1 byte.
+            start += std::istream::pos_type(1);
+            is.seekg(start);
             out.clear();
         }
     }
@@ -92,15 +116,27 @@ read_next<float>(std::istream& is, const Range& range)
 }
 
 template <>
+Entry read_next<dummy_ascii8_t>(std::istream& is, const Range& range)
+{
+    return read_string<char8_t>(is, range, is_ascii);
+}
+
+template <>
+Entry read_next<dummy_ascii16_t>(std::istream& is, const Range& range)
+{
+    return read_string<char16_t>(is, range, is_ascii);
+}
+
+template <>
 Entry read_next<char8_t>(std::istream& is, const Range& range)
 {
-    return read_string<char8_t>(is, range);
+    return read_string<char8_t>(is, range, is_latin);
 }
 
 template <>
 Entry read_next<char16_t>(std::istream& is, const Range& range)
 {
-    return read_string<char16_t>(is, range);
+    return read_string<char16_t>(is, range, is_latin);
 }
 
 /// Get everything in the stream that matches the given filter.
@@ -123,6 +159,8 @@ Report inspect(std::istream& is, const Spec& spec)
     const auto start = is.tellg();
     for (const auto& filter : spec)
     {
+        if (filter.range.first > filter.range.second)
+            throw(bad_range{filter.range.first, filter.range.second});
         Report sub;
         is.clear(); // Recover from EOF in previous iteration.
         is.seekg(start);
@@ -140,8 +178,12 @@ Report inspect(std::istream& is, const Spec& spec)
             sub = find<char8_t>(is, filter);
         else if (filter.type == "s16")
             sub = find<char16_t>(is, filter);
+        else if (filter.type == "a8")
+            sub = find<dummy_ascii8_t>(is, filter);
+        else if (filter.type == "a16")
+            sub = find<dummy_ascii16_t>(is, filter);
         else
-            assert(false);
+            throw(unknown_type(filter.type));
         out.insert(out.end(), sub.begin(), sub.end());
     }
     // Sort entries by stream position.
@@ -157,13 +199,15 @@ std::vector<std::string> format_report(const Report& report)
     Entry last_entry;
     for (const auto& entry : report)
     {
-        auto [addr, value, type] = entry;
+        const auto& [addr, value, type] = entry;
         std::ostringstream pos;
         pos << std::setfill('0') << std::setw(addr_width) << std::hex << addr;
         auto lsd = pos.str()[7];
         // If a value occurs multiple times on the same 16-byte line, show just one entry
         // in the report but mark the LSD of each address.
-        if (type == last_entry.type && value == last_entry.value && lsd != '0')
+        if (addr >> 4 == last_entry.address >> 4
+            && type == last_entry.type
+            && value == last_entry.value)
         {
             out.back()[addr_width + (addr & 0xf)] = lsd;
             continue;
