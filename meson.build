@@ -1,8 +1,8 @@
 # In this directory, execute 'meson builddir' once
 # After that: 'cd builddir; ninja test'
 
-project('player', 'cpp',
-        default_options: ['cpp_std=c++17'],
+project('inspect', 'cpp',
+        default_options: ['cpp_std=c++2a', 'warning_level=3'],
         version: '0.1.0',
         license: 'GPL3')
 add_global_arguments('-Dwarning_level=3', language: 'cpp')
