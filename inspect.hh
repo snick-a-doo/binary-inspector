@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <iosfwd>
 #include <string>
+#include <set>
 #include <vector>
 
 /// The type for range limits. Must be large enough to specify the full range of the
@@ -37,7 +38,7 @@ struct Entry
 };
 
 /// All of the matches found.
-using Report = std::vector<Entry>;
+using Report = std::set<Entry>;
 
 /// @return all matches for all filters sorted by stream position.
 Report inspect(std::istream& is, Spec const& spec);

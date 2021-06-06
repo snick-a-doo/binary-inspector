@@ -176,12 +176,14 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
 // Entry point
 int main(int argc, char** argv)
 {
+#ifdef test
     // Run runtime unit tests.
     doctest::Context test_context;
     test_context.applyCommandLine(argc, argv);
     int exit_status = test_context.run();
     if (test_context.shouldExit())
         return exit_status;
+#endif
 
     try
     {
