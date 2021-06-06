@@ -1,4 +1,0 @@
-Given a binary file, show all strings, doubles, floats, integers, and characters with offsets.
-
-Data types shown is selectable.  Ranges of numbers accepeted is selectable.
-

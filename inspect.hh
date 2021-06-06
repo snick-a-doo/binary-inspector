@@ -11,7 +11,12 @@
 /// widest integer type.
 using range_t = int64_t;
 /// A min/max pair.
-using Range = std::pair<range_t, range_t>;
+struct Range
+{
+    range_t low;
+    range_t high;
+    bool absolute = false;
+};
 
 /// The user-specified range for a specific type
 struct Filter
@@ -35,14 +40,14 @@ struct Entry
 using Report = std::vector<Entry>;
 
 /// @return all matches for all filters sorted by stream position.
-Report inspect(std::istream& is, const Spec& spec);
+Report inspect(std::istream& is, Spec const& spec);
 /// Format the matches for display.
-std::vector<std::string> format_report(const Report& report);
+std::vector<std::string> format_report(Report const& report);
 
 /// Exception raised when the range is empty.
 struct unknown_type : public std::runtime_error
 {
-    unknown_type(const std::string& type)
+    unknown_type(std::string const& type)
         : runtime_error{"Unknown type: " + type}
     {}
 };

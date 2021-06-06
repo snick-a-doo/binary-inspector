@@ -12,16 +12,16 @@ template <typename T> void write(std::ostream& os, T value)
 }
 
 /// Write a char string to the stream.
-template <> void write(std::ostream& os, const char* str)
+template <> void write(std::ostream& os, char const* str)
 {
     os << str << std::ends;
 }
 
 /// Write a wide string to a stream.
-template <> void write(std::ostream& os, const char16_t* str)
+template <> void write(std::ostream& os, char16_t const* str)
 {
     do
-        os.write(reinterpret_cast<const char*>(str), sizeof(char16_t));
+        os.write(reinterpret_cast<char const*>(str), sizeof(char16_t));
     while (*str++);
 }
 

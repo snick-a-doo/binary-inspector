@@ -199,7 +199,7 @@ TEST_CASE("zero-length string")
 
 TEST_CASE("short string")
 {
-    auto check = [](const Report& out) {
+    auto check = [](Report const& out) {
         CHECK(out[0].address == 0x14);
         CHECK(out[0].value == "moo");
         CHECK(out[0].type == "s8");

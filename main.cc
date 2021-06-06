@@ -17,7 +17,7 @@
 /// Exception raised when the range isn't in the expected format.
 struct bad_format : public std::runtime_error
 {
-    bad_format(const std::string& arg)
+    bad_format(std::string const& arg)
         : runtime_error{"Range format should be <low>:<high> (" + arg + ")"}
     {}
 };
@@ -31,7 +31,7 @@ struct missing_file : public std::runtime_error
 };
 
 /// The ranges used if one isn't specified.
-const std::map<std::string, Range> default_ranges = {
+std::map<std::string, Range> const default_ranges = {
     {"f64", {-6, 6}}, // exponent
     {"f32", {-6, 6}},
     {"i64", {-1000, 1000}}, // value
@@ -44,14 +44,14 @@ const std::map<std::string, Range> default_ranges = {
 };
 
 /// The ranges used if no ranges are specified.
-const Spec default_spec = {
+Spec const default_spec = {
     {"i32", {-1000, 1000}},
     {"f64", {-6, 6}},
     {"s8",  {3, 64}},
 };
 
 /// Parse the range specification and return a range object or throw.
-Range get_range(const std::string& str)
+Range get_range(std::string const& str)
 {
     range_t low = 0;
     range_t high = 0;
@@ -66,19 +66,19 @@ Range get_range(const std::string& str)
 };
 
 /// @return The string representation of a collection of range filters.
-std::string to_string(const Spec& spec)
+std::string to_string(Spec const& spec)
 {
-    auto append = [](const auto& s1, const auto& p2) {
+    auto append = [](auto const& s1, auto const& p2) {
         std::ostringstream os;
         os << s1 << "--" << p2.type << '='
-           << p2.range.first << ':' << p2.range.second << ' ';
+           << p2.range.low << ':' << p2.range.high << ' ';
         return os.str();
     };
     return std::accumulate(spec.begin(), spec.end(), std::string(), append);
 }
 
 /// The help message.
-const std::string usage =
+std::string const usage =
     "Usage: inspect [options] file\n"
     "\n"
     "  -d --f64=[range] show double-precision floats.\n"
@@ -116,7 +116,7 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
         {"help", no_argument, nullptr, 'h'},
         {0, 0, 0, 0}};
 
-    auto add_filter = [&](const std::string& opt) {
+    auto add_filter = [&](std::string const& opt) {
         spec.push_back(Filter{opt, ::optarg ? get_range(::optarg) : default_ranges.at(opt)});
     };
 
@@ -187,10 +187,10 @@ int main(int argc, char** argv)
     {
         auto [file, spec] = parse_args(argc, argv);
         auto is = std::ifstream(file);
-        for (const auto& line : format_report(inspect(is, spec)))
+        for (auto const& line : format_report(inspect(is, spec)))
             std::cout << line << std::endl;
     }
-    catch(const std::runtime_error& e)
+    catch(std::runtime_error const& e)
     {
         std::cerr << "Error: " << e.what() << "\n\n" << usage;
         return EXIT_FAILURE;
@@ -232,7 +232,14 @@ TEST_CASE("spec to string")
     CHECK(to_string(default_spec) == "--i32=-1000:1000 --f64=-6:6 --s8=3:64 ");
 }
 
-bool operator==(const Filter& f1, const Filter& f2)
+bool operator==(Range const& r1, Range const& r2)
+{
+    return r1.low == r2.low
+        && r1.high == r2.high
+        && r1.absolute == r2.absolute;
+}
+
+bool operator==(Filter const& f1, Filter const& f2)
 {
     return f1.type == f2.type && f1.range == f2.range;
 }
@@ -251,7 +258,7 @@ TEST_CASE("args")
     };
 
     std::string file = "file";
-    auto result = [&file](const Spec& spec) {
+    auto result = [&file](Spec const& spec) {
         return std::make_pair(file, spec);
     };
 
