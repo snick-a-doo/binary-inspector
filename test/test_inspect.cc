@@ -1,4 +1,19 @@
-#include "inspect.hh"
+// Copyright © 2020-2021 Sam Varner
+//
+// This file is part of Inspect.
+//
+// Composure is free software: you can redistribute it and/or modify it under the terms of
+// the GNU General Public License as published by the Free Software Foundation, either
+// version 3 of the License, or (at your option) any later version.
+//
+// Composure is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+// without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+// PURPOSE.  See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with Composure.
+// If not, see <http://www.gnu.org/licenses/>.
+
+#include "../src/inspect.hh"
 #include "doctest.h"
 
 #include <fstream>
@@ -6,7 +21,7 @@
 
 TEST_CASE("empty file")
 {
-    std::ifstream is("../empty_file");
+    std::ifstream is("empty_file");
     auto out = inspect(is, {});
     CHECK(out.empty());
     CHECK(format_report(out).empty());
@@ -14,7 +29,8 @@ TEST_CASE("empty file")
 
 TEST_CASE("double")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
+    assert(is);
     Spec spec{{"f64", {-6, 6}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
@@ -29,7 +45,7 @@ TEST_CASE("double")
 
 TEST_CASE("float")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"f32", {-6, 6}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
@@ -44,7 +60,7 @@ TEST_CASE("float")
 
 TEST_CASE("positive int")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {10, 1000}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 3);
@@ -68,7 +84,7 @@ TEST_CASE("positive int")
 
 TEST_CASE("positive and negative ints")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {-100, 1000}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -86,7 +102,7 @@ TEST_CASE("positive and negative ints")
 
 TEST_CASE("short")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i16", {1, 0xfe}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -110,7 +126,7 @@ TEST_CASE("short")
 
 TEST_CASE("long")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i64", {0x00ff00ff00ff0001L, 0x0100000000000000L}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -123,7 +139,7 @@ TEST_CASE("long")
 
 TEST_CASE("negative int")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {-100, -1}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -136,7 +152,7 @@ TEST_CASE("negative int")
 
 TEST_CASE("overlapping negative ints")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {-1000, -1}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -154,7 +170,7 @@ TEST_CASE("overlapping negative ints")
 
 TEST_CASE("no match")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {99, 100}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
@@ -163,7 +179,7 @@ TEST_CASE("no match")
 
 TEST_CASE("all numbers")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i64", {0x00ff000000000000L, 0x0100000000000000L}},
                  {"i32", {-1000, 1000}},
                  {"i16", {1, 0xfe}},
@@ -205,7 +221,7 @@ TEST_CASE("all numbers")
 
 TEST_CASE("zero-length string")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"s8", {0, 3}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -231,7 +247,7 @@ TEST_CASE("short string")
         auto fmt = format_report(out);
         CHECK(fmt[0] == "0000001     4   8         s8  moo");
     };
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     SUBCASE("within")
     {
         Spec spec{{"s8", {2, 4}}};
@@ -256,7 +272,7 @@ TEST_CASE("short string")
 
 TEST_CASE("long string")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"s8", {10, 100}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
@@ -271,7 +287,7 @@ TEST_CASE("long string")
 
 TEST_CASE("no long ASCII string")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"a8", {10, 100}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
@@ -279,7 +295,7 @@ TEST_CASE("no long ASCII string")
 
 TEST_CASE("repeated zeros")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {-10, 10}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
@@ -311,7 +327,7 @@ TEST_CASE("repeated zeros")
 
 TEST_CASE("16-bit char string")
 {
-    std::ifstream is("../test_data_wide");
+    std::ifstream is("../test/test_data_wide");
     Spec spec{{"s16", {2, 4}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
@@ -331,7 +347,7 @@ TEST_CASE("16-bit char string")
 
 TEST_CASE("8-bit ASCII")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"a8", {2, 4}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
@@ -350,7 +366,7 @@ TEST_CASE("8-bit ASCII")
 
 TEST_CASE("16-bit ASCII")
 {
-    std::ifstream is("../test_data_wide");
+    std::ifstream is("../test/test_data_wide");
     Spec spec{{"a16", {2, 4}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
@@ -369,7 +385,7 @@ TEST_CASE("16-bit ASCII")
 
 TEST_CASE("long 16-bit char string")
 {
-    std::ifstream is("../test_data_wide");
+    std::ifstream is("../test/test_data_wide");
     Spec spec{{"s16", {10, 100}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
@@ -384,7 +400,7 @@ TEST_CASE("long 16-bit char string")
 
 TEST_CASE("no long 16-bit ASCII string")
 {
-    std::ifstream is("../test_data_wide");
+    std::ifstream is("../test/test_data_wide");
     Spec spec{{"a16", {10, 100}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
@@ -392,7 +408,7 @@ TEST_CASE("no long 16-bit ASCII string")
 
 TEST_CASE("split string")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"s8", {5, 10}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 5); // false positive at 0xc: ffeeffeeffeeff00
@@ -419,7 +435,7 @@ TEST_CASE("split string")
 
 TEST_CASE("split 16-bit string")
 {
-    std::ifstream is("../test_data_wide");
+    std::ifstream is("../test/test_data_wide");
     Spec spec{{"s16", {5, 10}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 4);
@@ -446,14 +462,14 @@ TEST_CASE("split 16-bit string")
 
 TEST_CASE("unknown type")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"q13", {4, 10}}};
     CHECK_THROWS_AS(inspect(is, spec), unknown_type);
 }
 
 TEST_CASE("bad range")
 {
-    std::ifstream is("../test_data");
+    std::ifstream is("../test/test_data");
     Spec spec{{"i32", {4, -10}}};
     CHECK_THROWS_AS(inspect(is, spec), bad_range);
 }

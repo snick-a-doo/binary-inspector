@@ -8,17 +8,9 @@ project('inspect', 'cpp',
         default_options: ['cpp_std=c++2a', 'warning_level=3'],
         version: '0.2.0',
         license: 'GPL3')
-# Uncomment for profiling.
+
+# Uncomment for profiling. See also src/meson.build
 #add_global_arguments('-pg', language: 'cpp')
 
-inspect_sources = ['inspect.cc', 'main.cc']
-inspect_app = executable('inspect', inspect_sources, install: true)
-# Uncomment for profiling.
-#inspect_app = executable('inspect', inspect_sources, link_args: '-pg')
-
-write_sources = ['write.cc']
-write_app = executable('write', write_sources)
-
-test_sources = ['inspect.cc', 'test.cc', 'test_inspect.cc']
-test_app = executable('test_app', test_sources)
-test('inspector test', test_app)
+subdir('src')
+subdir('test')
