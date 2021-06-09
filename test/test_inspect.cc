@@ -30,7 +30,6 @@ TEST_CASE("empty file")
 TEST_CASE("double")
 {
     std::ifstream is("../test/test_data");
-    assert(is);
     Spec spec{{"f64", {-6, 6}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
