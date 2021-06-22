@@ -23,15 +23,11 @@
 #include <set>
 #include <vector>
 
-/// The type for range limits. Must be large enough to specify the full range of the
-/// widest integer type.
-using range_t = int64_t;
-/// A min/max pair.
 struct Range
 {
-    range_t low;
-    range_t high;
-    bool absolute = false;
+    std::string low;
+    std::string high;
+    std::string min = "0"; // Exclude values within this much of zero.
 };
 
 /// The user-specified range for a specific type
@@ -53,7 +49,7 @@ struct Entry
 };
 
 /// All of the matches found.
-using Report = std::set<Entry>;
+using Report = std::vector<Entry>;
 
 /// @return all matches for all filters sorted by stream position.
 Report inspect(std::istream& is, Spec const& spec);
@@ -71,9 +67,8 @@ struct unknown_type : public std::runtime_error
 /// Exception raised when the range is empty.
 struct bad_range : public std::runtime_error
 {
-    bad_range(range_t low, range_t high)
-        : runtime_error{"Low range > high ("
-        + std::to_string(low) + " > " + std::to_string(high) + ")"}
+    bad_range(Range const& range)
+        : runtime_error{"Low range > high (" + range.low + " > " + range.high + ")"}
     {}
 };
 

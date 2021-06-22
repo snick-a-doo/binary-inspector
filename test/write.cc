@@ -84,5 +84,9 @@ int main(int argc, char** argv)
     write(os, 0);
     write(os, 0);
     write(os, 1); // 0100 0000
+    write(os, 1.234e56);
+    write(os, 1.234e5);
+    write(os, 1.234e-5);
+    write(os, 1.234e-56);
     return os.good();
 }

@@ -16,10 +16,8 @@
 #include "inspect.hh"
 
 #define TEST
-#ifdef TEST
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "../test/doctest.h"
-#endif
 
 #include <cstring>
 #include <fstream>
@@ -50,37 +48,38 @@ struct missing_file : public std::runtime_error
 
 /// The ranges used if one isn't specified.
 std::map<std::string, Range> const default_ranges = {
-    {"f64", {-6, 6}}, // exponent
-    {"f32", {-6, 6}},
-    {"i64", {-1000, 1000}}, // value
-    {"i32", {-1000, 1000}},
-    {"i16", {-1000, 1000}},
-    {"s16", {3, 64}}, // string length
-    {"s8",  {3, 64}},
-    {"a16", {3, 64}},
-    {"a8",  {3, 64}},
+    {"f64", {"-1e6", "1e6", "1e-6"}},
+    {"f32", {"-1e6", "1e6", "1e-6"}},
+    {"i64", {"-1000", "1000"}}, // value
+    {"i32", {"-1000", "1000"}},
+    {"i16", {"-1000", "1000"}},
+    {"s16", {"3", "64"}}, // string length
+    {"s8",  {"3", "64"}},
+    {"a16", {"3", "64"}},
+    {"a8",  {"3", "64"}},
 };
 
 /// The ranges used if no ranges are specified.
 Spec const default_spec = {
-    {"i32", {-1000, 1000}},
-    {"f64", {-6, 6}},
-    {"s8",  {3, 64}},
+    {"f64", {"-1e6", "1e6", "1e-6"}},
+    {"i32", {"-1000", "1000"}},
+    {"s8",  {"3", "64"}},
 };
 
 /// Parse the range specification and return a range object or throw.
 Range get_range(std::string const& str)
 {
-    range_t low = 0;
-    range_t high = 0;
-    char sep;
+    std::string low;
+    std::string high;
+    std::string min = "0";
     std::istringstream is(str);
-    is >> low >> sep >> high;
-    if (sep != ':' || !is)
+    std::getline(is, low, ':');
+    std::getline(is, high, ':');
+    if (is)
+        is >> min;
+    if (low.empty() || high.empty())
         throw bad_format(str);
-    if (low > high)
-        throw bad_range(low, high);
-    return {low, high};
+    return {low, high, min};
 };
 
 /// @return The string representation of a collection of range filters.
@@ -89,7 +88,10 @@ std::string to_string(Spec const& spec)
     auto append = [](auto const& s1, auto const& p2) {
         std::ostringstream os;
         os << s1 << "--" << p2.type << '='
-           << p2.range.low << ':' << p2.range.high << ' ';
+           << p2.range.low << ':' << p2.range.high;
+        if (p2.range.min != "0")
+            os << ':' << p2.range.min;
+        os << ' ';
         return os.str();
     };
     return std::accumulate(spec.begin(), spec.end(), std::string(), append);
@@ -109,8 +111,7 @@ std::string const usage =
     "  -A --s16=[range] show 2-byte ASCII strings.\n"
     "  -a --s8=[range]  show 1-byte ASCII strings.\n"
     "\n"
-    "Range is given as <low>:<high>. For floats, <low> and <high> are exponents,\n"
-    "for integers they're values, for strings they're lengths.\n"
+    "Range is given as <low>:<high>[:<min>]. For strings, <low> and <high> are lengths,\n"
     "\n"
     "With no options, the behavior is the same as\n"
     + to_string(default_spec)
@@ -135,7 +136,7 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
         {0, 0, 0, 0}};
 
     auto add_filter = [&](std::string const& opt) {
-        spec.push_back(Filter{opt, ::optarg ? get_range(::optarg) : default_ranges.at(opt)});
+        spec.emplace_back(opt, ::optarg ? get_range(::optarg) : default_ranges.at(opt));
     };
 
     // getopt doesn't expect to be called multiple times, but it is if tests are
@@ -222,25 +223,28 @@ int main(int argc, char** argv)
 
 TEST_CASE("parse range")
 {
-    CHECK(get_range("1:2") == Range {1, 2});
-    CHECK(get_range("2:2") == Range {2, 2});
+    CHECK(get_range("1:2") == Range {"1", "2"});
+    CHECK(get_range("2:2") == Range {"2", "2"});
     CHECK_THROWS_AS(get_range("1-2"), bad_format);
     CHECK_THROWS_AS(get_range("1/2"), bad_format);
 
-    CHECK(get_range("-2:-1") == Range {-2, -1});
+    CHECK(get_range("1:2:3") == Range {"1", "2", "3"});
+    CHECK(get_range("2:2:2") == Range {"2", "2", "2"});
+
+    CHECK(get_range("-2:-1") == Range {"-2", "-1"});
     CHECK_THROWS_AS(get_range("-2--1"), bad_format);
     CHECK_THROWS_AS(get_range("-2 - -1"), bad_format);
     CHECK_THROWS_AS(get_range("-2/-1"), bad_format);
 
-    CHECK(get_range("-2:1") == Range {-2, 1});
+    CHECK(get_range("-2:1") == Range {"-2", "1"});
     CHECK_THROWS_AS(get_range("-2-1"), bad_format);
     CHECK_THROWS_AS(get_range("-2/1"), bad_format);
 
-    CHECK(get_range("-999999999999:999999999999")
-          == Range {-999'999'999'999L, 999'999'999'999L});
+    CHECK(get_range("-999'999'999'999L:999'999'999'999L")
+          == Range {"-999999999999", "999999999999"});
+    CHECK(get_range("1.23e-6:2.34e6") == Range {"1.23e-6" ,"2.34e6"});
 
     CHECK_THROWS_AS(get_range(""), bad_format);
-    CHECK_THROWS_AS(get_range("22:3"), bad_range);
     CHECK_THROWS_AS(get_range("22:"), bad_format);
     CHECK_THROWS_AS(get_range(":3"), bad_format);
     CHECK_THROWS_AS(get_range("22"), bad_format);
@@ -249,17 +253,15 @@ TEST_CASE("parse range")
 TEST_CASE("spec to string")
 {
     CHECK(to_string(Spec()) == "");
-    CHECK(to_string(default_spec) == "--i32=-1000:1000 --f64=-6:6 --s8=3:64 ");
+    CHECK(to_string(default_spec) == "--f64=-1e6:1e6:1e-6 --i32=-1000:1000 --s8=3:64 ");
 }
 
-bool operator==(Range const& r1, Range const& r2)
+bool operator==(Range const& r1, Range const& r2) noexcept
 {
-    return r1.low == r2.low
-        && r1.high == r2.high
-        && r1.absolute == r2.absolute;
+    return r1.low == r2.low && r1.high == r2.high && r1.min == r2.min;
 }
 
-bool operator==(Filter const& f1, Filter const& f2)
+bool operator==(Filter const& f1, Filter const& f2) noexcept
 {
     return f1.type == f2.type && f1.range == f2.range;
 }
@@ -288,30 +290,29 @@ TEST_CASE("args")
 
     CHECK(parse({file, "-d"}) == result({{"f64", default_ranges.at("f64")}}));
     CHECK(parse({file, "--f64"}) == result({{"f64", default_ranges.at("f64")}}));
-    CHECK(parse({file, "-d-3:9"}) == result({{"f64", {-3, 9}}}));
-    CHECK(parse({file, "--f64=-3:9"}) == result({{"f64", {-3, 9}}}));
+    CHECK(parse({file, "-d-3:9"}) == result({{"f64", {"-3", "9"}}}));
+    CHECK(parse({file, "--f64=-3:9"}) == result({{"f64", {"-3", "9"}}}));
     CHECK(parse({file, "-f"}) == result({{"f32", default_ranges.at("f32")}}));
     CHECK(parse({file, "--f32"}) == result({{"f32", default_ranges.at("f32")}}));
-    CHECK(parse({file, "-f-3:9"}) == result({{"f32", {-3, 9}}}));
-    CHECK(parse({file, "--f32=-3:9"}) == result({{"f32", {-3, 9}}}));
+    CHECK(parse({file, "-f-3:9"}) == result({{"f32", {"-3", "9"}}}));
+    CHECK(parse({file, "--f32=-3:9"}) == result({{"f32", {"-3", "9"}}}));
     CHECK(parse({file, "-l"}) == result({{"i64", default_ranges.at("i64")}}));
     CHECK(parse({file, "--i64"}) == result({{"i64", default_ranges.at("i64")}}));
-    CHECK(parse({file, "--i64=-3:9"}) == result({{"i64", {-3, 9}}}));
-    CHECK(parse({file, "-l-3:9"}) == result({{"i64", {-3, 9}}}));
+    CHECK(parse({file, "--i64=-3:9"}) == result({{"i64", {"-3","9"}}}));
+    CHECK(parse({file, "-l-3:9"}) == result({{"i64", {"-3","9"}}}));
     CHECK(parse({file, "-i"}) == result({{"i32", default_ranges.at("i32")}}));
     CHECK(parse({file, "--i32"}) == result({{"i32", default_ranges.at("i32")}}));
-    CHECK(parse({file, "-i-3:9"}) == result({{"i32", {-3, 9}}}));
-    CHECK(parse({file, "--i32=-3:9"}) == result({{"i32", {-3, 9}}}));
+    CHECK(parse({file, "-i-3:9"}) == result({{"i32", {"-3","9"}}}));
+    CHECK(parse({file, "--i32=-3:9"}) == result({{"i32", {"-3","9"}}}));
     CHECK(parse({file, "-s"}) == result({{"i16", default_ranges.at("i16")}}));
     CHECK(parse({file, "--i16"}) == result({{"i16", default_ranges.at("i16")}}));
-    CHECK(parse({file, "-s-3:9"}) == result({{"i16", {-3, 9}}}));
-    CHECK(parse({file, "--i16=-3:9"}) == result({{"i16", {-3, 9}}}));
+    CHECK(parse({file, "-s-3:9"}) == result({{"i16", {"-3","9"}}}));
+    CHECK(parse({file, "--i16=-3:9"}) == result({{"i16", {"-3","9"}}}));
     CHECK(parse({file, "-z"}) == result({{"s8", default_ranges.at("s8")}}));
     CHECK(parse({file, "--s8"}) == result({{"s8", default_ranges.at("s8")}}));
-    CHECK(parse({file, "-z 3:9"}) == result({{"s8", {3, 9}}}));
-    CHECK(parse({file, "--s8=3:9"}) == result({{"s8", {3, 9}}}));
-    CHECK(parse({file, "--s8=-3:9"}) == result({{"s8", {-3, 9}}}));
+    CHECK(parse({file, "-z3:9"}) == result({{"s8", {"3","9"}}}));
+    CHECK(parse({file, "--s8=3:9"}) == result({{"s8", {"3","9"}}}));
+    CHECK(parse({file, "--s8=-3:9"}) == result({{"s8", {"-3","9"}}}));
 
-    CHECK_THROWS_AS(parse({file, "--i32=0:-25"}), bad_range);
     CHECK_THROWS_AS(parse({file, "--i32=0-25"}), bad_format);
 }

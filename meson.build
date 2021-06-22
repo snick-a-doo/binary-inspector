@@ -6,7 +6,7 @@
 
 project('inspect', 'cpp',
         default_options: ['cpp_std=c++2a', 'warning_level=3'],
-        version: '0.2.0',
+        version: '0.3.0',
         license: 'GPL3')
 
 # Uncomment for profiling. See also src/meson.build

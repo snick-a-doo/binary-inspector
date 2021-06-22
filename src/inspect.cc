@@ -30,18 +30,21 @@
 /// @return An Entry for the number. If an appropriate number wasn't found, return a
 ///    default Entry. Caller can check if the stream is good or if Entry::address is -1.
 template <typename T>
-Entry read_number(std::istream& is, T low, T high, bool absolute)
+Entry read_number(std::istream& is, T low, T high, T min)
 {
     while(is)
     {
         auto start = is.tellg();
         T value;
         is.read(reinterpret_cast<char*>(&value), sizeof value);
-        T v = absolute ? std::abs(value) : value;
         // Advance 1 byte
         is.seekg(start + std::istream::pos_type(1));
-        if (low <= v && v <= high)
-            return {start, std::to_string(value), ""};
+        if (low <= value && value <= high && (std::abs(value) >= min || value == 0))
+        {
+            std::ostringstream is;
+            is << value;
+            return {start, is.str(), ""};
+        }
     }
     return {};
 };
@@ -87,7 +90,7 @@ Entry read_string(std::istream& is, size_t low, size_t high)
         {
             // Bad character or too long.
             // Consume any remaining characters from an over-long string.
-            while (std::isprint(c_low) && c_low == c)
+            while (is && std::isprint(c_low) && c_low == c)
             {
                 is.read(reinterpret_cast<char*>(&c), sizeof c);
                 c_low = static_cast<unsigned char>(c);
@@ -101,40 +104,55 @@ Entry read_string(std::istream& is, size_t low, size_t high)
 }
 
 template <typename T, typename R>
-Entry read_next(std::istream& is, R low, R high)
+Entry read_next(std::istream& is, R low, R high, R min)
 {
-    return read_number<T>(is, low, high, false);
+    return read_number<T>(is, low, high, min);
 }
 
 template <>
-Entry read_next<char8_t, size_t>(std::istream& is, size_t low, size_t high)
+Entry read_next<char8_t, size_t>(std::istream& is, size_t low, size_t high, size_t)
 {
     return read_string<char8_t>(is, low, high);
 }
 
 template <>
-Entry read_next<char16_t, size_t>(std::istream& is, size_t low, size_t high)
+Entry read_next<char16_t, size_t>(std::istream& is, size_t low, size_t high, size_t)
 {
     return read_string<char16_t>(is, low, high);
 }
 
 /// Get everything in the stream that matches the given filter.
 template <typename T, typename R = T>
-void find(std::istream& is, std::string const& type, R low, R high, Report& out)
+void find(std::istream& is, Filter const& filter, Report& out)
 {
+    R low, high, min;
+    std::istringstream is_low(filter.range.low);
+    std::istringstream is_high(filter.range.high);
+    std::istringstream is_min(filter.range.min);
+    // setbase(0) gives prefix-dependent parsing: 0 for octal, 0x for hex.
+    is_low >> std::setbase(0) >> low;
+    is_high >> std::setbase(0) >> high;
+    is_min >> std::setbase(0) >> min;
+    if (low > high)
+        throw(bad_range{filter.range});
     while (true)
     {
-        auto entry = read_next<T>(is, low, high);
+        auto entry = read_next<T>(is, low, high, min);
         if (!is)
             return;
-        out.insert({entry.address, entry.value, type});
+        out.emplace_back(entry.address, entry.value, filter.type);
     }
 }
 
 /// Sort entries by stream position.
-bool operator<(Entry const& a, Entry const& b)
+bool constexpr operator<(Entry const& a, Entry const& b) noexcept
 {
-    return a.address < b.address;
+    auto a_addr = a.address >> 4;
+    auto b_addr = b.address >> 4;
+    // Sort by 16-byte "row". Sort by name of type within a row.  Note that this may put
+    // some entries out of address order, but allows a more orderly presentation with
+    // groping of repeated values.
+    return a_addr < b_addr || (a_addr == b_addr && a.type < b.type);
 }
 
 Report inspect(std::istream& is_in, Spec const& spec)
@@ -145,55 +163,48 @@ Report inspect(std::istream& is_in, Spec const& spec)
     auto const start = is.tellg();
     for (auto const& filter : spec)
     {
-        if (filter.range.low > filter.range.high)
-            throw(bad_range{filter.range.low, filter.range.high});
         is.clear(); // Recover from EOF in previous iteration.
         is.seekg(start);
         if (filter.type == "f64")
-            find<double>(is, filter.type,
-                         std::pow(10, filter.range.low),
-                         std::pow(10, filter.range.high),
-                         out);
+            find<double>(is, filter, out);
         else if (filter.type == "f32")
-            find<float>(is, filter.type,
-                        std::pow(10, filter.range.low),
-                        std::pow(10, filter.range.high),
-                        out);
+            find<float>(is, filter, out);
         else if (filter.type == "i64")
-            find<int64_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<int64_t>(is, filter, out);
         else if (filter.type == "i32")
-            find<int32_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<int32_t>(is, filter, out);
         else if (filter.type == "i16")
-            find<int16_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<int16_t>(is, filter, out);
         else if (filter.type == "s8")
         {
             std::setlocale(LC_ALL, "en_US.iso88591"); // isprint() -> Latin-1
-            find<char8_t, size_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<char8_t, size_t>(is, filter, out);
         }
         else if (filter.type == "s16")
         {
             std::setlocale(LC_ALL, "en_US.iso88591"); // isprint() -> Latin-1
-            find<char16_t, size_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<char16_t, size_t>(is, filter, out);
         }
         else if (filter.type == "a8")
         {
             std::setlocale(LC_ALL, "C"); // isprint() -> ASCII
-            find<char8_t, size_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<char8_t, size_t>(is, filter, out);
         }
         else if (filter.type == "a16")
         {
             std::setlocale(LC_ALL, "C"); // isprint() -> ASCII
-            find<char16_t, size_t>(is, filter.type, filter.range.low, filter.range.high, out);
+            find<char16_t, size_t>(is, filter, out);
         }
         else
             throw(unknown_type(filter.type));
     }
+    std::stable_sort(out.begin(), out.end());
     return out;
 }
 
 std::vector<std::string> format_report(Report const& report)
 {
-    constexpr int addr_width = 8;
+    int constexpr addr_width = 8;
     std::vector<std::string> out;
     Entry last_entry;
     for (auto const& entry : report)

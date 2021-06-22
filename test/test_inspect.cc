@@ -30,39 +30,44 @@ TEST_CASE("empty file")
 TEST_CASE("double")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"f64", {-6, 6}}};
+    Spec spec{{"f64", {"-1e6", "1e6", "1e-6"}}};
     auto out = inspect(is, spec);
-    CHECK(out.size() == 1);
+    CHECK(out.size() == 8);
     auto it = out.begin();
     CHECK(it->address == 0x0);
-    CHECK(it->value == "1.230000");
+    CHECK(it->value == "1.23");
     CHECK(it->type == "f64");
     auto fmt = format_report(out);
-    CHECK(fmt.size() == 1);
-    CHECK(fmt[0] == "0000000 0                 f64 1.230000");
+    CHECK(fmt.size() == 4);
+    CHECK(fmt[0] == "0000000 0                 f64 1.23");
+    CHECK(fmt[1] == "0000004         89abc     f64 0");
+    CHECK(fmt[2] == "0000006 0                 f64 123400");
+    CHECK(fmt[3] == "                8         f64 1.234e-05");
 }
 
 TEST_CASE("float")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"f32", {-6, 6}}};
+    Spec spec{{"f32", {"-1e-6", "1e6", "1e-6"}}};
     auto out = inspect(is, spec);
-    CHECK(out.size() == 1);
+    CHECK(out.size() == 14);
     auto it = out.begin();
     CHECK(it->address == 0x4);
-    CHECK(it->value == "1.903750");
+    CHECK(it->value == "1.90375");
     CHECK(it->type == "f32");
     auto fmt = format_report(out);
-    CHECK(fmt.size() == 1);
-    CHECK(fmt[0] == "0000000     4             f32 1.903750");
+    CHECK(fmt.size() == 7);
+    CHECK(fmt[0] == "0000000     4             f32 1.90375");
+    CHECK(fmt[1] == "0000004         89abcdef  f32 0");
+    CHECK(fmt[4] == "         1                f32 -0");
 }
 
 TEST_CASE("positive int")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {10, 1000}}};
+    Spec spec{{"i32", {"10", "1000"}}};
     auto out = inspect(is, spec);
-    CHECK(out.size() == 3);
+    CHECK(out.size() == 4);
     auto it = out.begin();
     CHECK(it->address == 0x8);
     CHECK(it->value == "432");
@@ -75,35 +80,48 @@ TEST_CASE("positive int")
     CHECK(it->address == 0x53);
     CHECK(it->value == "256");
     CHECK(it->type == "i32");
+    ++it;
+    CHECK(it->address == 0x5f);
+    CHECK(it->value == "75");
+    CHECK(it->type == "i32");
     auto fmt = format_report(out);
+    CHECK(fmt.size() == 4);
     CHECK(fmt[0] == "0000000         8         i32 432");
     CHECK(fmt[1] == "0000004        7          i32 255");
     CHECK(fmt[2] == "0000005    3              i32 256");
+    CHECK(fmt[3] == "                       f  i32 75");
 }
 
 TEST_CASE("positive and negative ints")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {-100, 1000}}};
+    Spec spec{{"i32", {"-100", "100"}}};
     auto out = inspect(is, spec);
+    CHECK(out.size() == 13);
     auto it = out.begin();
-    CHECK(it->address == 0x8);
-    CHECK(it->value == "432");
-    CHECK(it->type == "i32");
-    ++it;
     CHECK(it->address == 0x44);
     CHECK(it->value == "-1");
     CHECK(it->type == "i32");
+    ++it;
+    CHECK(it->address == 0x48);
+    CHECK(it->value == "0");
+    CHECK(it->type == "i32");
     auto fmt = format_report(out);
-    CHECK(fmt[0] == "0000000         8         i32 432");
-    CHECK(fmt[1] == "0000004     4             i32 -1");
+    CHECK(fmt.size() == 6);
+    CHECK(fmt[0] == "0000004     4             i32 -1");
+    CHECK(fmt[1] == "                89abcdef  i32 0");
+    CHECK(fmt[2] == "0000005 0                 i32 0");
+    CHECK(fmt[3] == "            4             i32 1");
+    CHECK(fmt[4] == "                       f  i32 75");
+    CHECK(fmt[5] == "0000006 0                 i32 0");
 }
 
 TEST_CASE("short")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i16", {1, 0xfe}}};
+    Spec spec{{"i16", {"1", "0xfe"}}};
     auto out = inspect(is, spec);
+    CHECK(out.size() == 8);
     auto it = out.begin();
     CHECK(it->address == 0x9);
     CHECK(it->value == "1");
@@ -118,15 +136,20 @@ TEST_CASE("short")
     CHECK(it->value == "119");
     CHECK(it->type == "i16");
     auto fmt = format_report(out);
+    CHECK(fmt.size() == 7);
     CHECK(fmt[0] == "0000000          9        i16 1");
     CHECK(fmt[1] == "0000001       6   a       i16 111");
     CHECK(fmt[2] == "0000002          9        i16 119");
+    CHECK(fmt[3] == "0000003             c     i16 100");
+    CHECK(fmt[4] == "0000004   2               i16 100");
+    CHECK(fmt[5] == "0000005     4             i16 1");
+    CHECK(fmt[6] == "                       f  i16 75");
 }
 
 TEST_CASE("long")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i64", {0x00ff00ff00ff0001L, 0x0100000000000000L}}};
+    Spec spec{{"i64", {"0x00ff00ff00ff0001", "0x0100000000000000"}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
     CHECK(it->address == 0xc);
@@ -139,7 +162,7 @@ TEST_CASE("long")
 TEST_CASE("negative int")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {-100, -1}}};
+    Spec spec{{"i32", {"-100", "-1"}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
     CHECK(it->address == 0x44);
@@ -152,7 +175,7 @@ TEST_CASE("negative int")
 TEST_CASE("overlapping negative ints")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {-1000, -1}}};
+    Spec spec{{"i32", {"-1000", "-1"}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
     CHECK(it->address == 0x43);
@@ -170,58 +193,101 @@ TEST_CASE("overlapping negative ints")
 TEST_CASE("no match")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {99, 100}}};
+    Spec spec{{"i32", {"99", "100"}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
     CHECK(format_report(out).empty());
 }
 
+TEST_CASE("zeros")
+{
+    std::ifstream is("../test/test_data");
+    Spec spec{{"f64", {"-100", "100", "100"}},
+              {"i32", {"0", "0"}}};
+    auto out = inspect(is, spec);
+    auto it = out.begin();
+    CHECK(it->address == 0x48);
+    CHECK(it->value == "0");
+    CHECK(it->type == "f64");
+    ++it;
+    CHECK(it->address == 0x49);
+    CHECK(it->value == "0");
+    CHECK(it->type == "f64");
+    std::advance(it, 4);
+    CHECK(it->address == 0x48);
+    CHECK(it->value == "0");
+    CHECK(it->type == "i32");
+    ++it;
+    CHECK(it->address == 0x49);
+    CHECK(it->value == "0");
+    CHECK(it->type == "i32");
+    auto fmt = format_report(out);
+    CHECK(fmt[0] == "0000004         89abc     f64 0");
+    CHECK(fmt[1] == "                89abcdef  i32 0");
+    CHECK(fmt[2] == "0000005 0                 i32 0");
+    CHECK(fmt[3] == "0000006 0                 i32 0");
+}
+
 TEST_CASE("all numbers")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i64", {0x00ff000000000000L, 0x0100000000000000L}},
-                 {"i32", {-1000, 1000}},
-                 {"i16", {1, 0xfe}},
-                 {"f64", {-6, 6}},
-                 {"f32", {-6, 6}}};
+    Spec spec{{"i64", {"0x00ff000000000000", "0x0100000000000000"}},
+                 {"i32", {"1", "100"}},
+                 {"i16", {"1", "0x4f"}},
+                 {"f64", {"1", "100"}},
+                 {"f32", {"1", "100"}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
-    CHECK(it->address == 0x0);
-    CHECK(it->value == "1.230000");
-    CHECK(it->type == "f64");
-    ++it;
     CHECK(it->address == 0x4);
-    CHECK(it->value == "1.903750");
+    CHECK(it->value == "1.90375");
     CHECK(it->type == "f32");
     ++it;
-    CHECK(it->address == 0x8);
-    CHECK(it->value == "432");
-    CHECK(it->type == "i32");
+    CHECK(it->address == 0x0);
+    CHECK(it->value == "1.23");
+    CHECK(it->type == "f64");
     ++it;
     CHECK(it->address == 0x9);
     CHECK(it->value == "1");
     CHECK(it->type == "i16");
     ++it;
     CHECK(it->address == 0xc);
-    CHECK(it->value == "72038902055038719"); // 0x00ffeeffeeffeeff
+    CHECK(it->value == "72038902055038719");
     CHECK(it->type == "i64");
-    ++it;
-    CHECK(it->address == 0x16);
-    CHECK(it->value == "111");
+    std::advance(it, 3);
+    CHECK(it->address == 0x54);
+    CHECK(it->value == "1");
     CHECK(it->type == "i16");
+    ++it;
+    CHECK(it->address == 0x5f);
+    CHECK(it->value == "75");
+    CHECK(it->type == "i16");
+    ++it;
+    CHECK(it->address == 0x54);
+    CHECK(it->value == "1");
+    CHECK(it->type == "i32");
+    ++it;
+    CHECK(it->address == 0x5f);
+    CHECK(it->value == "75");
+    CHECK(it->type == "i32");
     auto fmt = format_report(out);
-    CHECK(fmt[0] == "0000000 0                 f64 1.230000");
-    CHECK(fmt[1] == "            4             f32 1.903750");
-    CHECK(fmt[2] == "                8         i32 432");
-    CHECK(fmt[3] == "                 9        i16 1");
-    CHECK(fmt[4] == "                    c     i64 72038902055038719");
-    CHECK(fmt[5] == "0000001       6   a       i16 111");
+    // Sort by name of type within a row. This may puts some entries out of address order.
+    CHECK(fmt[0] ==  "0000000     4             f32 1.90375");
+    CHECK(fmt[1] ==  "        0                 f64 1.23");
+    CHECK(fmt[2] ==  "                 9        i16 1");
+    CHECK(fmt[3] ==  "                    c     i64 72038902055038719");
+    CHECK(fmt[4] ==  "0000004  1                i64 72057594021176434");
+    CHECK(fmt[5] ==  "                     d    i64 72057594037927936");
+    CHECK(fmt[6] ==  "0000005     4             i16 1");
+    CHECK(fmt[7] ==  "                       f  i16 75");
+    CHECK(fmt[8] ==  "            4             i32 1");
+    CHECK(fmt[9] ==  "                       f  i32 75");
+    CHECK(fmt[10] == "0000006     4             f32 7.94147");
 }
 
 TEST_CASE("zero-length string")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"s8", {0, 3}}};
+    Spec spec{{"s8", {"0", "3"}}};
     auto out = inspect(is, spec);
     auto it = out.begin();
     CHECK(it->address == 0x0a);
@@ -249,22 +315,22 @@ TEST_CASE("short string")
     std::ifstream is("../test/test_data");
     SUBCASE("within")
     {
-        Spec spec{{"s8", {2, 4}}};
+        Spec spec{{"s8", {"2", "4"}}};
         check(inspect(is, spec));
     }
     SUBCASE("at min")
     {
-        Spec spec{{"s8", {3, 5}}};
+        Spec spec{{"s8", {"3", "5"}}};
         check(inspect(is, spec));
     }
     SUBCASE("at max")
     {
-        Spec spec{{"s8", {2, 3}}};
+        Spec spec{{"s8", {"2", "3"}}};
         check(inspect(is, spec));
     }
     SUBCASE("at min and max")
     {
-        Spec spec{{"s8", {3, 3}}};
+        Spec spec{{"s8", {"3", "3"}}};
         check(inspect(is, spec));
     }
 }
@@ -272,7 +338,7 @@ TEST_CASE("short string")
 TEST_CASE("long string")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"s8", {10, 100}}};
+    Spec spec{{"s8", {"10", "100"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
     auto it = out.begin();
@@ -287,47 +353,15 @@ TEST_CASE("long string")
 TEST_CASE("no long ASCII string")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"a8", {10, 100}}};
+    Spec spec{{"a8", {"10", "100"}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
-}
-
-TEST_CASE("repeated zeros")
-{
-    std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {-10, 10}}};
-    auto out = inspect(is, spec);
-    auto it = out.begin();
-    CHECK(it->address == 0x44);
-    CHECK(it->value == "-1");
-    CHECK(it->type == "i32");
-    ++it;
-    CHECK(it->address == 0x48);
-    CHECK(it->value == "0");
-    CHECK(it->type == "i32");
-    ++it;
-    CHECK(it->address == 0x49);
-    CHECK(it->value == "0");
-    CHECK(it->type == "i32");
-    std::advance(it, 7);
-    CHECK(it->address == 0x50);
-    CHECK(it->value == "0");
-    CHECK(it->type == "i32");
-    ++it;
-    CHECK(it->address == 0x54);
-    CHECK(it->value == "1");
-    CHECK(it->type == "i32");
-    auto fmt = format_report(out);
-    CHECK(fmt[0] == "0000004     4             i32 -1");
-    CHECK(fmt[1] == "                89abcdef  i32 0");
-    CHECK(fmt[2] == "0000005 0                 i32 0");
-    CHECK(fmt[3] == "            4             i32 1");
 }
 
 TEST_CASE("16-bit char string")
 {
     std::ifstream is("../test/test_data_wide");
-    Spec spec{{"s16", {2, 4}}};
+    Spec spec{{"s16", {"2", "4"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
     auto it = out.begin();
@@ -347,7 +381,7 @@ TEST_CASE("16-bit char string")
 TEST_CASE("8-bit ASCII")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"a8", {2, 4}}};
+    Spec spec{{"a8", {"2", "4"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
     auto it = out.begin();
@@ -366,7 +400,7 @@ TEST_CASE("8-bit ASCII")
 TEST_CASE("16-bit ASCII")
 {
     std::ifstream is("../test/test_data_wide");
-    Spec spec{{"a16", {2, 4}}};
+    Spec spec{{"a16", {"2", "4"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 2);
     auto it = out.begin();
@@ -385,7 +419,7 @@ TEST_CASE("16-bit ASCII")
 TEST_CASE("long 16-bit char string")
 {
     std::ifstream is("../test/test_data_wide");
-    Spec spec{{"s16", {10, 100}}};
+    Spec spec{{"s16", {"10", "100"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 1);
     auto it = out.begin();
@@ -400,7 +434,7 @@ TEST_CASE("long 16-bit char string")
 TEST_CASE("no long 16-bit ASCII string")
 {
     std::ifstream is("../test/test_data_wide");
-    Spec spec{{"a16", {10, 100}}};
+    Spec spec{{"a16", {"10", "100"}}};
     auto out = inspect(is, spec);
     CHECK(out.empty());
 }
@@ -408,7 +442,7 @@ TEST_CASE("no long 16-bit ASCII string")
 TEST_CASE("split string")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"s8", {5, 10}}};
+    Spec spec{{"s8", {"5", "10"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 5); // false positive at 0xc: ffeeffeeffeeff00
     auto it = out.begin();
@@ -435,7 +469,7 @@ TEST_CASE("split string")
 TEST_CASE("split 16-bit string")
 {
     std::ifstream is("../test/test_data_wide");
-    Spec spec{{"s16", {5, 10}}};
+    Spec spec{{"s16", {"5", "10"}}};
     auto out = inspect(is, spec);
     CHECK(out.size() == 4);
     auto it = out.begin();
@@ -462,13 +496,13 @@ TEST_CASE("split 16-bit string")
 TEST_CASE("unknown type")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"q13", {4, 10}}};
+    Spec spec{{"q13", {"4", "10"}}};
     CHECK_THROWS_AS(inspect(is, spec), unknown_type);
 }
 
 TEST_CASE("bad range")
 {
     std::ifstream is("../test/test_data");
-    Spec spec{{"i32", {4, -10}}};
+    Spec spec{{"i32", {"4", "-10"}}};
     CHECK_THROWS_AS(inspect(is, spec), bad_range);
 }
