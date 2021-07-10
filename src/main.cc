@@ -187,7 +187,7 @@ std::pair<std::string, Spec> parse_args(int argc, char** argv)
         }
     }
 
-    if (!argv[::optind])
+    if (::optind >= argc || !argv[::optind])
         throw(missing_file());
     return {argv[::optind], spec.empty() ? default_spec : spec};
 }
@@ -241,7 +241,7 @@ TEST_CASE("parse range")
     CHECK_THROWS_AS(get_range("-2/1"), bad_format);
 
     CHECK(get_range("-999'999'999'999L:999'999'999'999L")
-          == Range {"-999999999999", "999999999999"});
+          == Range {"-999'999'999'999L", "999'999'999'999L", "0"});
     CHECK(get_range("1.23e-6:2.34e6") == Range {"1.23e-6" ,"2.34e6"});
 
     CHECK_THROWS_AS(get_range(""), bad_format);

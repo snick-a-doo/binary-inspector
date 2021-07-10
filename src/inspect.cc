@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cctype>
 #include <cmath>
+#include <future>
 #include <istream>
 #include <iomanip>
 #include <locale>
@@ -123,7 +124,7 @@ Entry read_next<char16_t, size_t>(std::istream& is, size_t low, size_t high, siz
 
 /// Get everything in the stream that matches the given filter.
 template <typename T, typename R = T>
-void find(std::istream& is, Filter const& filter, Report& out)
+Report find(std::istream&& is, Filter const& filter)
 {
     R low, high, min;
     std::istringstream is_low(filter.range.low);
@@ -135,13 +136,15 @@ void find(std::istream& is, Filter const& filter, Report& out)
     is_min >> std::setbase(0) >> min;
     if (low > high)
         throw(bad_range{filter.range});
-    while (true)
+
+    Report out;
+    while (is)
     {
         auto entry = read_next<T>(is, low, high, min);
-        if (!is)
-            return;
-        out.emplace_back(entry.address, entry.value, filter.type);
+        if (is)
+            out.emplace(entry.address, entry.value, filter.type);
     }
+    return out;
 }
 
 /// Sort entries by stream position.
@@ -158,47 +161,48 @@ bool constexpr operator<(Entry const& a, Entry const& b) noexcept
 Report inspect(std::istream& is_in, Spec const& spec)
 {
     std::string content((std::istreambuf_iterator<char>(is_in)), std::istreambuf_iterator<char>());
-    std::istringstream is(content);
-    Report out;
-    auto const start = is.tellg();
+    std::vector<std::future<Report>> outs;
     for (auto const& filter : spec)
     {
-        is.clear(); // Recover from EOF in previous iteration.
-        is.seekg(start);
         if (filter.type == "f64")
-            find<double>(is, filter, out);
+            outs.push_back(std::async(find<double>, std::istringstream(content), filter));
         else if (filter.type == "f32")
-            find<float>(is, filter, out);
+            outs.push_back(std::async(find<float>, std::istringstream(content), filter));
         else if (filter.type == "i64")
-            find<int64_t>(is, filter, out);
+            outs.push_back(std::async(find<int64_t>, std::istringstream(content), filter));
         else if (filter.type == "i32")
-            find<int32_t>(is, filter, out);
+            outs.push_back(std::async(find<int32_t>, std::istringstream(content), filter));
         else if (filter.type == "i16")
-            find<int16_t>(is, filter, out);
+            outs.push_back(std::async(find<int16_t>, std::istringstream(content), filter));
         else if (filter.type == "s8")
         {
             std::setlocale(LC_ALL, "en_US.iso88591"); // isprint() -> Latin-1
-            find<char8_t, size_t>(is, filter, out);
+            outs.push_back(std::async(find<char8_t, size_t>, std::istringstream(content), filter));
         }
         else if (filter.type == "s16")
         {
             std::setlocale(LC_ALL, "en_US.iso88591"); // isprint() -> Latin-1
-            find<char16_t, size_t>(is, filter, out);
+            outs.push_back(std::async(find<char16_t, size_t>, std::istringstream(content), filter));
         }
         else if (filter.type == "a8")
         {
             std::setlocale(LC_ALL, "C"); // isprint() -> ASCII
-            find<char8_t, size_t>(is, filter, out);
+            outs.push_back(std::async(find<char8_t, size_t>, std::istringstream(content), filter));
         }
         else if (filter.type == "a16")
         {
             std::setlocale(LC_ALL, "C"); // isprint() -> ASCII
-            find<char16_t, size_t>(is, filter, out);
+            outs.push_back(std::async(find<char16_t, size_t>, std::istringstream(content), filter));
         }
         else
             throw(unknown_type(filter.type));
     }
-    std::stable_sort(out.begin(), out.end());
+    Report out;
+    for (auto& o: outs)
+    {
+        auto const& report = o.get();
+        out.insert(report.begin(), report.end());
+    }
     return out;
 }
 

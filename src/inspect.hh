@@ -49,7 +49,7 @@ struct Entry
 };
 
 /// All of the matches found.
-using Report = std::vector<Entry>;
+using Report = std::multiset<Entry>;
 
 /// @return all matches for all filters sorted by stream position.
 Report inspect(std::istream& is, Spec const& spec);
