@@ -111,7 +111,7 @@ std::string const usage =
     "  -A --s16=[range] show 2-byte ASCII strings.\n"
     "  -a --s8=[range]  show 1-byte ASCII strings.\n"
     "\n"
-    "Range is given as <low>:<high>[:<min>]. For strings, <low> and <high> are lengths,\n"
+    "Range is given as <low>:<high>[:<min>]. For strings, <low> and <high> are lengths.\n"
     "\n"
     "With no options, the behavior is the same as\n"
     + to_string(default_spec)
