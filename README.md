@@ -1,4 +1,4 @@
-# Inspect
+# Binary Inspector
 A tool for finding interesting values in binary files.
 
 The bytes in a given binary file could represent anything. Any four adjacent bytes could be a 32-bit integer, any eight bytes could be a 64-bit float, etc. But most of these values aren't meaningful. Inspect lets you pick the types and ranges you're interested in and then in shows the values and their byte offsets. Here's an example that finds 32-bit ints from -1000 to 1000, 64-bit floats from -1e6 to 1e6, and narrow strings 3 to 64 characters long.
